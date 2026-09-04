@@ -7,6 +7,7 @@
     "icon": "statistic.png",
     "author": "allenlee1990",
     "level": 1,
+    "v3": false,
     "history": {
       "v1.0.6": "趣商城会先读取会话状态，并把服务器刷新 Cookie 合并到签到请求。",
       "v1.0.5": "石之家与趣商城签到请求明确直连，避免浏览器登录态与代理出口不一致。",
