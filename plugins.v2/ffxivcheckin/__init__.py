@@ -25,7 +25,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -37,6 +37,7 @@ class FFXIVCheckin(_PluginBase):
     RISINGSTONES_SIGNIN_URL = "https://apiff14risingstones.web.sdo.com/api/home/sign/signIn"
     MALL_SESSION_URL = "https://sqmallservice.u.sdo.com/api/us/getSessionStatus"
     MALL_SIGNIN_URL = "https://sqmallservice.u.sdo.com/api/us/integration/checkIn?merchantId=1"
+    MALL_HOME = "https://qu.sdo.com/personal-center?merchantId=1"
 
     _enabled = False
     _onlyonce = False
@@ -184,8 +185,9 @@ class FFXIVCheckin(_PluginBase):
         headers = {
             "User-Agent": self._risingstones_user_agent or self._default_user_agent(),
             "Origin": "https://qu.sdo.com",
-            "Referer": "https://qu.sdo.com/",
+            "Referer": self.MALL_HOME,
             "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json;charset=UTF-8",
             "qu-merchant-id": "1",
             "qu-hardware-platform": "3",
             "qu-software-platform": "1",
@@ -193,7 +195,7 @@ class FFXIVCheckin(_PluginBase):
             "qu-web-host": "qu.sdo.com",
         }
         headers.update(self._extra_headers(self._mall_headers))
-        return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, cookie, headers))
+        return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, cookie, headers, {}))
 
     def _request(self, method: str, url: str, cookie: str, headers: Dict[str, str], data: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """通过 MoviePilot 网络工具发送请求，并将响应收敛为安全摘要。"""
