@@ -41,10 +41,12 @@ def _load_plugin():
     app = types.ModuleType("app")
     plugins = types.ModuleType("app.plugins")
     schemas = types.ModuleType("app.schemas")
-    sdk = types.ModuleType("app.sdk")
-    config = types.ModuleType("app.sdk.config")
-    logging = types.ModuleType("app.sdk.logging")
-    network = types.ModuleType("app.sdk.network")
+    schemas_types = types.ModuleType("app.schemas.types")
+    core = types.ModuleType("app.core")
+    config = types.ModuleType("app.core.config")
+    logging = types.ModuleType("app.log")
+    utils = types.ModuleType("app.utils")
+    network = types.ModuleType("app.utils.http")
 
     class _Base:
         """最小插件基类。"""
@@ -78,11 +80,11 @@ def _load_plugin():
             """忽略测试日志。"""
 
     plugins._PluginBase = _Base
-    schemas.NotificationType = types.SimpleNamespace(SiteMessage="site")
+    schemas_types.NotificationType = types.SimpleNamespace(SiteMessage="site")
     config.settings = types.SimpleNamespace(PROXY=None)
     logging.logger = _Logger()
     network.RequestUtils = _RequestUtils
-    sys.modules.update({"app": app, "app.plugins": plugins, "app.schemas": schemas, "app.sdk": sdk, "app.sdk.config": config, "app.sdk.logging": logging, "app.sdk.network": network})
+    sys.modules.update({"app": app, "app.plugins": plugins, "app.schemas": schemas, "app.schemas.types": schemas_types, "app.core": core, "app.core.config": config, "app.log": logging, "app.utils": utils, "app.utils.http": network})
 
     apscheduler = types.ModuleType("apscheduler")
     triggers = types.ModuleType("apscheduler.triggers")
@@ -90,7 +92,7 @@ def _load_plugin():
     cron.CronTrigger = type("CronTrigger", (), {"from_crontab": staticmethod(lambda value: value)})
     sys.modules.update({"apscheduler": apscheduler, "apscheduler.triggers": triggers, "apscheduler.triggers.cron": cron})
 
-    plugin_file = Path(__file__).parents[3] / "plugins.v3" / "ffxivcheckin" / "__init__.py"
+    plugin_file = Path(__file__).parents[3] / "plugins.v2" / "ffxivcheckin" / "__init__.py"
     spec = importlib.util.spec_from_file_location("ffxivcheckin", plugin_file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

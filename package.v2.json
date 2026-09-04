@@ -1,0 +1,14 @@
+{
+  "FFXIVCheckin": {
+    "name": "FFXIV 国服签到",
+    "description": "使用已登录 Cookie 完成石之家与趣商城每日签到。",
+    "labels": "FFXIV,签到,石之家,趣商城",
+    "version": "1.0.0",
+    "icon": "statistic.png",
+    "author": "allenlee1990",
+    "level": 1,
+    "history": {
+      "v1.0.0": "首次发布：支持石之家与趣商城每日签到、定时执行、立即执行与结果通知。"
+    }
+  }
+}
