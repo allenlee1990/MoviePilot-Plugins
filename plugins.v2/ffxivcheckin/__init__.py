@@ -20,7 +20,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.0"
+    plugin_version = "1.0.1"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -39,7 +39,9 @@ class FFXIVCheckin(_PluginBase):
     _cron = "0 9 * * *"
     _risingstones_cookie = ""
     _risingstones_user_agent = ""
+    _risingstones_headers = ""
     _mall_cookie = ""
+    _mall_headers = ""
 
     def init_plugin(self, config: dict = None) -> None:
         """根据保存的配置初始化签到任务。"""
@@ -50,7 +52,9 @@ class FFXIVCheckin(_PluginBase):
         self._cron = str(config.get("cron") or "0 9 * * *")
         self._risingstones_cookie = str(config.get("risingstones_cookie") or "").strip()
         self._risingstones_user_agent = str(config.get("risingstones_user_agent") or "").strip()
+        self._risingstones_headers = str(config.get("risingstones_headers") or "").strip()
         self._mall_cookie = str(config.get("mall_cookie") or "").strip()
+        self._mall_headers = str(config.get("mall_headers") or "").strip()
         if self._onlyonce:
             self._onlyonce = False
             self.update_config(self._current_config())
@@ -108,7 +112,9 @@ class FFXIVCheckin(_PluginBase):
                 {"component": "VRow", "content": [
                     self._field("VTextarea", "risingstones_cookie", "石之家 Cookie", 12, rows=2, type="password", hint="粘贴请求头中的完整 Cookie，至少包含 ff14risingstones。", persistent_hint=True),
                     self._field("VTextarea", "risingstones_user_agent", "石之家登录 User-Agent", 12, rows=2, hint="必须与登录石之家时浏览器使用的 User-Agent 一致。", persistent_hint=True),
+                    self._field("VTextarea", "risingstones_headers", "石之家认证请求头（可选）", 12, rows=2, type="password", hint="从已登录请求复制除 Cookie 外的认证头，每行 Header: value。", persistent_hint=True),
                     self._field("VTextarea", "mall_cookie", "趣商城 Cookie", 12, rows=2, type="password", hint="粘贴商城签到请求头中的完整 Cookie（通常包含 sessionId）。", persistent_hint=True),
+                    self._field("VTextarea", "mall_headers", "趣商城认证请求头（可选）", 12, rows=2, type="password", hint="从 sqmallservice 请求复制除 Cookie 外的认证头，每行 Header: value。", persistent_hint=True),
                 ]},
                 {"component": "VAlert", "props": {"type": "warning", "variant": "tonal"}, "text": "Cookie 只保存在本机 MoviePilot 插件配置中。登录失效、验证码或风控拦截时，插件不会尝试自动登录；请在浏览器重新登录后更新 Cookie。"},
             ],
@@ -150,6 +156,7 @@ class FFXIVCheckin(_PluginBase):
             "Referer": self.RISINGSTONES_HOME,
             "Content-Type": "application/x-www-form-urlencoded",
         }
+        headers.update(self._extra_headers(self._risingstones_headers))
         self._request("GET", self.RISINGSTONES_HOME, self._risingstones_cookie, headers)
         nonce = str(uuid4())
         return self._result("石之家", self._request(
@@ -171,7 +178,7 @@ class FFXIVCheckin(_PluginBase):
             "qu-deploy-platform": "1",
             "qu-web-host": "qu.sdo.com",
         }
-        self._request("GET", self.MALL_SESSION_URL, self._mall_cookie, headers)
+        headers.update(self._extra_headers(self._mall_headers))
         return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, self._mall_cookie, headers))
 
     def _request(self, method: str, url: str, cookie: str, headers: Dict[str, str], data: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -252,8 +259,22 @@ class FFXIVCheckin(_PluginBase):
             "cron": self._cron,
             "risingstones_cookie": self._risingstones_cookie,
             "risingstones_user_agent": self._risingstones_user_agent,
+            "risingstones_headers": self._risingstones_headers,
             "mall_cookie": self._mall_cookie,
+            "mall_headers": self._mall_headers,
         }
+
+    @staticmethod
+    def _extra_headers(raw: str) -> Dict[str, str]:
+        """解析浏览器复制的非 Cookie 请求头，拒绝会破坏 HTTP 请求的字段。"""
+        blocked = {"cookie", "host", "content-length"}
+        headers = {}
+        for line in raw.splitlines():
+            name, separator, value = line.partition(":")
+            name, value = name.strip(), value.strip()
+            if separator and name and value and name.lower() not in blocked:
+                headers[name] = value
+        return headers
 
     @staticmethod
     def _field(component: str, model: str, label: str, md: int, **props: Any) -> Dict[str, Any]:
