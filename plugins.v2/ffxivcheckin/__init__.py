@@ -13,6 +13,11 @@ from app.plugins import _PluginBase
 from app.schemas.types import NotificationType
 from app.utils.http import RequestUtils
 
+try:
+    from app.helper.cookiecloud import CookieCloudHelper
+except ImportError:
+    CookieCloudHelper = None
+
 
 class FFXIVCheckin(_PluginBase):
     """执行石之家与趣商城每日签到。"""
@@ -20,7 +25,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -42,6 +47,7 @@ class FFXIVCheckin(_PluginBase):
     _risingstones_headers = ""
     _mall_cookie = ""
     _mall_headers = ""
+    _use_cookiecloud = True
 
     def init_plugin(self, config: dict = None) -> None:
         """根据保存的配置初始化签到任务。"""
@@ -55,6 +61,7 @@ class FFXIVCheckin(_PluginBase):
         self._risingstones_headers = str(config.get("risingstones_headers") or "").strip()
         self._mall_cookie = str(config.get("mall_cookie") or "").strip()
         self._mall_headers = str(config.get("mall_headers") or "").strip()
+        self._use_cookiecloud = bool(config.get("use_cookiecloud", True))
         if self._onlyonce:
             self._onlyonce = False
             self.update_config(self._current_config())
@@ -105,15 +112,16 @@ class FFXIVCheckin(_PluginBase):
                     self._field("VSwitch", "enabled", "启用每日签到", 4),
                     self._field("VSwitch", "onlyonce", "保存后立即执行一次", 4),
                     self._field("VSwitch", "notify", "发送签到结果通知", 4),
+                    self._field("VSwitch", "use_cookiecloud", "使用 CookieCloud 浏览器登录态", 4),
                 ]},
                 {"component": "VRow", "content": [
                     self._field("VCronField", "cron", "签到时间", 12, placeholder="5 位 Cron 表达式，例如 0 9 * * *"),
                 ]},
                 {"component": "VRow", "content": [
-                    self._field("VTextarea", "risingstones_cookie", "石之家 Cookie", 12, rows=2, type="password", hint="粘贴请求头中的完整 Cookie，至少包含 ff14risingstones。", persistent_hint=True),
+                    self._field("VTextarea", "risingstones_cookie", "石之家 Cookie（CookieCloud 不可用时备用）", 12, rows=2, type="password", hint="CookieCloud 开启时会优先使用浏览器同步的最新登录态。", persistent_hint=True),
                     self._field("VTextarea", "risingstones_user_agent", "石之家登录 User-Agent", 12, rows=2, hint="必须与登录石之家时浏览器使用的 User-Agent 一致。", persistent_hint=True),
                     self._field("VTextarea", "risingstones_headers", "石之家认证请求头（可选）", 12, rows=2, type="password", hint="从已登录请求复制除 Cookie 外的认证头，每行 Header: value。", persistent_hint=True),
-                    self._field("VTextarea", "mall_cookie", "趣商城 Cookie", 12, rows=2, type="password", hint="粘贴商城签到请求头中的完整 Cookie（通常包含 sessionId）。", persistent_hint=True),
+                    self._field("VTextarea", "mall_cookie", "趣商城 Cookie（CookieCloud 不可用时备用）", 12, rows=2, type="password", hint="CookieCloud 开启时会优先使用浏览器同步的最新登录态。", persistent_hint=True),
                     self._field("VTextarea", "mall_headers", "趣商城认证请求头（可选）", 12, rows=2, type="password", hint="从 sqmallservice 请求复制除 Cookie 外的认证头，每行 Header: value。", persistent_hint=True),
                 ]},
                 {"component": "VAlert", "props": {"type": "warning", "variant": "tonal"}, "text": "Cookie 只保存在本机 MoviePilot 插件配置中。登录失效、验证码或风控拦截时，插件不会尝试自动登录；请在浏览器重新登录后更新 Cookie。"},
@@ -148,7 +156,8 @@ class FFXIVCheckin(_PluginBase):
 
     def _check_risingstones(self) -> Dict[str, Any]:
         """提交石之家签到；缺少凭证时不发起网络请求。"""
-        if not self._risingstones_cookie or not self._risingstones_user_agent:
+        cookie = self._site_cookie(self._risingstones_cookie)
+        if not cookie or not self._risingstones_user_agent:
             return self._skipped("石之家", "请先填写石之家 Cookie 和登录 User-Agent")
         headers = {
             "User-Agent": self._risingstones_user_agent,
@@ -157,15 +166,16 @@ class FFXIVCheckin(_PluginBase):
             "Content-Type": "application/x-www-form-urlencoded",
         }
         headers.update(self._extra_headers(self._risingstones_headers))
-        self._request("GET", self.RISINGSTONES_HOME, self._risingstones_cookie, headers)
+        self._request("GET", self.RISINGSTONES_HOME, cookie, headers)
         nonce = str(uuid4())
         return self._result("石之家", self._request(
-            "POST", f"{self.RISINGSTONES_SIGNIN_URL}?tempsuid={nonce}", self._risingstones_cookie, headers, {"tempsuid": nonce}
+            "POST", f"{self.RISINGSTONES_SIGNIN_URL}?tempsuid={nonce}", cookie, headers, {"tempsuid": nonce}
         ))
 
     def _check_mall(self) -> Dict[str, Any]:
         """提交趣商城积分签到；缺少 Cookie 时不发起网络请求。"""
-        if not self._mall_cookie:
+        cookie = self._site_cookie(self._mall_cookie)
+        if not cookie:
             return self._skipped("趣商城", "请先填写趣商城 Cookie")
         headers = {
             "User-Agent": self._risingstones_user_agent or self._default_user_agent(),
@@ -179,7 +189,7 @@ class FFXIVCheckin(_PluginBase):
             "qu-web-host": "qu.sdo.com",
         }
         headers.update(self._extra_headers(self._mall_headers))
-        return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, self._mall_cookie, headers))
+        return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, cookie, headers))
 
     def _request(self, method: str, url: str, cookie: str, headers: Dict[str, str], data: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """通过 MoviePilot 网络工具发送请求，并将响应收敛为安全摘要。"""
@@ -262,7 +272,24 @@ class FFXIVCheckin(_PluginBase):
             "risingstones_headers": self._risingstones_headers,
             "mall_cookie": self._mall_cookie,
             "mall_headers": self._mall_headers,
+            "use_cookiecloud": self._use_cookiecloud,
         }
+
+    def _site_cookie(self, fallback: str) -> str:
+        """优先复用 CookieCloud 同步的 sdo.com 登录态，失败时保留手工配置。"""
+        if not self._use_cookiecloud or CookieCloudHelper is None:
+            return fallback
+        try:
+            cookies, error = CookieCloudHelper().download()
+        except Exception as err:
+            logger.warning("FFXIV 国服签到读取 CookieCloud 失败：%s", err)
+            return fallback
+        cookie = (cookies or {}).get("sdo.com")
+        if cookie:
+            return cookie
+        if error:
+            logger.warning("FFXIV 国服签到未读取到 CookieCloud sdo.com 登录态：%s", error)
+        return fallback
 
     @staticmethod
     def _extra_headers(raw: str) -> Dict[str, str]:
