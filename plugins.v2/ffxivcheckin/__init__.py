@@ -24,7 +24,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -194,6 +194,13 @@ class FFXIVCheckin(_PluginBase):
             "qu-web-host": "qu.sdo.com",
         }
         headers.update(self._extra_headers(self._mall_headers))
+        session = self._request("GET", self.MALL_SESSION_URL, cookie, headers)
+        session_message = self._message(session.get("payload") or {}, session.get("text") or "")
+        if self._is_login_error(session.get("payload") or {}, session_message):
+            return self._result("趣商城", session)
+        refreshed = self._cookie_string(session.get("cookies") or {})
+        if refreshed:
+            cookie = f"{cookie};{refreshed}"
         return self._result("趣商城", self._request("PUT", self.MALL_SIGNIN_URL, cookie, headers, {}))
 
     def _request(self, method: str, url: str, cookie: str, headers: Dict[str, str], data: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -215,10 +222,11 @@ class FFXIVCheckin(_PluginBase):
             status_code = getattr(response, "status_code", None) if response else None
             text = (getattr(response, "text", "") or "").strip() if response else ""
             payload = self._json(response)
-            return {"status_code": status_code, "text": text, "payload": payload}
+            cookies = dict(getattr(response, "cookies", {}) or {}) if response else {}
+            return {"status_code": status_code, "text": text, "payload": payload, "cookies": cookies}
         except Exception as err:
             logger.warning("FFXIV 国服签到请求失败：%s", err)
-            return {"status_code": None, "text": f"请求异常：{err}", "payload": None}
+            return {"status_code": None, "text": f"请求异常：{err}", "payload": None, "cookies": {}}
         finally:
             if response is not None:
                 try:
@@ -309,6 +317,11 @@ class FFXIVCheckin(_PluginBase):
             if separator and name and value and name.lower() not in blocked:
                 headers[name] = value
         return headers
+
+    @staticmethod
+    def _cookie_string(cookies: Dict[str, Any]) -> str:
+        """把会话响应中的 Cookie 转回下一跳请求可用的 Cookie 头格式。"""
+        return ";".join(f"{name}={value}" for name, value in cookies.items() if name and value is not None)
 
     @staticmethod
     def _field(component: str, model: str, label: str, md: int, **props: Any) -> Dict[str, Any]:
