@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from apscheduler.triggers.cron import CronTrigger
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins import _PluginBase
 from app.schemas.types import NotificationType
@@ -25,7 +24,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.4"
+    plugin_version = "1.0.5"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -204,7 +203,7 @@ class FFXIVCheckin(_PluginBase):
             client = RequestUtils(
                 cookies=cookie,
                 headers=headers,
-                proxies=getattr(settings, "PROXY", None),
+                proxies=None,
                 timeout=20,
             )
             request = getattr(client, "request", None)

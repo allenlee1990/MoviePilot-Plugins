@@ -3,11 +3,12 @@
     "name": "FFXIV 国服签到",
     "description": "使用浏览器登录态完成石之家与趣商城每日签到。",
     "labels": "FFXIV,签到,石之家,趣商城",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "icon": "statistic.png",
     "author": "allenlee1990",
     "level": 1,
     "history": {
+      "v1.0.5": "石之家与趣商城签到请求明确直连，避免浏览器登录态与代理出口不一致。",
       "v1.0.4": "趣商城签到请求改用实际个人中心 Referer 与 JSON 请求体格式。",
       "v1.0.3": "按实际接口域名组合 CookieCloud 登录态：趣商城补入 sqmallservice.u.sdo.com 的 sessionId。",
       "v1.0.2": "默认复用 MoviePilot CookieCloud 同步的 sdo.com 浏览器登录态；手工 Cookie 仍作为回退。",
