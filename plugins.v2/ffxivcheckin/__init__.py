@@ -25,7 +25,7 @@ class FFXIVCheckin(_PluginBase):
     plugin_name = "FFXIV 国服签到"
     plugin_desc = "使用已登录 Cookie 完成石之家及趣商城的每日签到。"
     plugin_icon = "statistic.png"
-    plugin_version = "1.0.2"
+    plugin_version = "1.0.3"
     plugin_label = "FFXIV,签到"
     plugin_author = "allenlee1990"
     author_url = "https://github.com/allenlee1990"
@@ -156,7 +156,9 @@ class FFXIVCheckin(_PluginBase):
 
     def _check_risingstones(self) -> Dict[str, Any]:
         """提交石之家签到；缺少凭证时不发起网络请求。"""
-        cookie = self._site_cookie(self._risingstones_cookie)
+        cookie = self._site_cookie(
+            self._risingstones_cookie, "sdo.com", "apiff14risingstones.web.sdo.com"
+        )
         if not cookie or not self._risingstones_user_agent:
             return self._skipped("石之家", "请先填写石之家 Cookie 和登录 User-Agent")
         headers = {
@@ -174,7 +176,9 @@ class FFXIVCheckin(_PluginBase):
 
     def _check_mall(self) -> Dict[str, Any]:
         """提交趣商城积分签到；缺少 Cookie 时不发起网络请求。"""
-        cookie = self._site_cookie(self._mall_cookie)
+        cookie = self._site_cookie(
+            self._mall_cookie, "sdo.com", "sqmallservice.u.sdo.com"
+        )
         if not cookie:
             return self._skipped("趣商城", "请先填写趣商城 Cookie")
         headers = {
@@ -275,8 +279,8 @@ class FFXIVCheckin(_PluginBase):
             "use_cookiecloud": self._use_cookiecloud,
         }
 
-    def _site_cookie(self, fallback: str) -> str:
-        """优先复用 CookieCloud 同步的 sdo.com 登录态，失败时保留手工配置。"""
+    def _site_cookie(self, fallback: str, *domains: str) -> str:
+        """按实际接口域名组合 CookieCloud 登录态，失败时保留手工配置。"""
         if not self._use_cookiecloud or CookieCloudHelper is None:
             return fallback
         try:
@@ -284,11 +288,13 @@ class FFXIVCheckin(_PluginBase):
         except Exception as err:
             logger.warning("FFXIV 国服签到读取 CookieCloud 失败：%s", err)
             return fallback
-        cookie = (cookies or {}).get("sdo.com")
+        cookie = ";".join(
+            value for domain in domains if (value := (cookies or {}).get(domain))
+        )
         if cookie:
             return cookie
         if error:
-            logger.warning("FFXIV 国服签到未读取到 CookieCloud sdo.com 登录态：%s", error)
+            logger.warning("FFXIV 国服签到未读取到 CookieCloud 目标域名登录态：%s", error)
         return fallback
 
     @staticmethod
